@@ -1,0 +1,444 @@
+# Define the Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myapp
+---
+# ---------------------------
+# API Gateway Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: myapp
+  labels:
+    app: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: localhost:30400/api-gateway:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "docker"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: myapp
+spec:
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+  selector:
+    app: api-gateway
+---
+# ---------------------------
+# Service One Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-one
+  namespace: myapp
+  labels:
+    app: service-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-one
+  template:
+    metadata:
+      labels:
+        app: service-one
+    spec:
+      containers:
+      - name: service-one
+        image: localhost:30400/service-one:latest
+        ports:
+        - containerPort: 8082
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "docker"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-one
+  namespace: myapp
+spec:
+  ports:
+  - port: 8082
+    targetPort: 8082
+  selector:
+    app: service-one
+---
+# ---------------------------
+# Service One Database Deployment, Service, and Persistent Volume
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-one-db
+  namespace: myapp
+  labels:
+    app: service-one-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-one-db
+  template:
+    metadata:
+      labels:
+        app: service-one-db
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:3.7
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGODB_USER
+          value: "service-one"
+        - name: MONGODB_PASS
+          value: "service-one"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+      volumes:
+      - name: mongo-data
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-one-db
+  namespace: myapp
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  selector:
+    app: service-one-db
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongo-pv
+  namespace: myapp
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data/mongo"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: myapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# ---------------------------
+# Service Two Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-two
+  namespace: myapp
+  labels:
+    app: service-two
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-two
+  template:
+    metadata:
+      labels:
+        app: service-two
+    spec:
+      containers:
+      - name: service-two
+        image: localhost:30400/service-two:latest
+        ports:
+        - containerPort: 8084
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "docker"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-two
+  namespace: myapp
+spec:
+  ports:
+  - port: 8084
+    targetPort: 8084
+  selector:
+    app: service-two
+---
+# ---------------------------
+# Service Two Database Deployment, Service, and Persistent Volume
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-two-db
+  namespace: myapp
+  labels:
+    app: service-two-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-two-db
+  template:
+    metadata:
+      labels:
+        app: service-two-db
+    spec:
+      containers:
+      - name: mysql
+        image: mysql/mysql-server:latest
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "root123"
+        - name: MYSQL_DATABASE
+          value: "service-two"
+        - name: MYSQL_USER
+          value: "service-two"
+        - name: MYSQL_PASSWORD
+          value: "service-two"
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-two-db
+  namespace: myapp
+spec:
+  ports:
+  - port: 3306
+    targetPort: 3306
+  selector:
+    app: service-two-db
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv
+  namespace: myapp
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data/mysql"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: myapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# ---------------------------
+# Web Application Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-application
+  namespace: myapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-application
+  template:
+    metadata:
+      labels:
+        app: web-application
+    spec:
+      containers:
+        - name: web-application
+          image: localhost:30400/web-application:latest
+          ports:
+            - containerPort: 4200
+---
+# Service for web-application
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-application
+  namespace: myapp
+spec:
+  ports:
+    - port: 80
+      targetPort: 4200
+  selector:
+    app: web-application
+  type: ClusterIP
+
+---
+# ---------------------------
+# RabbitMQ Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: myapp
+  labels:
+    app: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.8-management-alpine
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "docker"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "docker"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: myapp
+spec:
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  selector:
+    app: rabbitmq
+---
+# ---------------------------
+# Consul Deployment and Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul
+  namespace: myapp
+  labels:
+    app: consul
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+      - name: consul
+        image: consul:1.7.3
+        ports:
+        - containerPort: 8500
+        - containerPort: 8600
+        args: ["agent", "-server", "-client=0.0.0.0", "-bootstrap-expect=1"]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul
+  namespace: myapp
+spec:
+  ports:
+    - name: http
+      port: 8500
+      targetPort: 8500
+    - name: dns
+      port: 8600
+      targetPort: 8600
+  selector:
+    app: consul
+    
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-ingress
+  namespace: myapp
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /app
+            pathType: Prefix
+            backend:
+              service:
+                name: web-application
+                port:
+                  number: 80
